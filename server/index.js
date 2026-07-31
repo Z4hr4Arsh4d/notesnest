@@ -14,6 +14,10 @@ app.get("/api/health", (req, res) => {
 app.use("/api/auth", authRoutes);
 app.use("/api", userRoutes);                    
 
+app.use((err, req, res, next) => {
+  console.error("Unexpected error:", err);
+  res.status(500).json({ error: "Something went wrong on our end" });
+});
 const PORT = 5000;
 app.listen(PORT, () => {
   console.log(`Server running on http://localhost:${PORT}`);
