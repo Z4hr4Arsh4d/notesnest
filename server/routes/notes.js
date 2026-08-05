@@ -62,5 +62,16 @@ router.put("/:id", async (req, res) => {
   });
   res.json(note);
 });
+// DELETE /api/notes/:id — delete a note (only if it's yours)
+router.delete("/:id", async (req, res) => {
+  const id = Number(req.params.id);
 
+  const existing = await prisma.note.findUnique({ where: { id } });
+  if (!existing || existing.userId !== req.user.userId) {
+    return res.status(404).json({ error: "Note not found" });
+  }
+
+  await prisma.note.delete({ where: { id } });
+  res.json({ ok: true, deleted: id });
+});
 module.exports = router;
