@@ -17,7 +17,7 @@ router.post("/", async (req, res) => {
     data: {
       title,
       content: content || "",
-      userId: req.user.userId,      // the owner = whoever is logged in
+      userId: req.user.userId,
     },
   });
   res.status(201).json(note);
@@ -26,10 +26,41 @@ router.post("/", async (req, res) => {
 // GET /api/notes — list ONLY the current user's notes
 router.get("/", async (req, res) => {
   const notes = await prisma.note.findMany({
-    where: { userId: req.user.userId },        // only THIS user's notes
-    orderBy: { updatedAt: "desc" },            // newest-edited first
+    where: { userId: req.user.userId },
+    orderBy: { updatedAt: "desc" },
   });
   res.json(notes);
+});
+
+// GET /api/notes/:id — read a single note (only if it's yours)
+router.get("/:id", async (req, res) => {
+  const id = Number(req.params.id);
+  const note = await prisma.note.findUnique({ where: { id } });
+
+  if (!note || note.userId !== req.user.userId) {
+    return res.status(404).json({ error: "Note not found" });
+  }
+  res.json(note);
+});
+
+// PUT /api/notes/:id — update a note (only if it's yours)
+router.put("/:id", async (req, res) => {
+  const id = Number(req.params.id);
+  const { title, content } = req.body;
+
+  const existing = await prisma.note.findUnique({ where: { id } });
+  if (!existing || existing.userId !== req.user.userId) {
+    return res.status(404).json({ error: "Note not found" });
+  }
+
+  const note = await prisma.note.update({
+    where: { id },
+    data: {
+      title: title ?? existing.title,
+      content: content ?? existing.content,
+    },
+  });
+  res.json(note);
 });
 
 module.exports = router;
