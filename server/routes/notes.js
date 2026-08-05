@@ -1,7 +1,13 @@
 const express = require("express");
 const prisma = require("../prisma/client");
 const authMiddleware = require("../middleware/auth");
+const { z } = require("zod");
 
+// the shape a valid note must have
+const noteSchema = z.object({
+  title: z.string().min(1, "Title is required").max(200, "Title too long"),
+  content: z.string().max(50000, "Content too long").optional(),
+});
 const router = express.Router();
 
 // Every route in this file is protected — you must be logged in.
@@ -9,16 +15,14 @@ router.use(authMiddleware);
 
 // POST /api/notes — create a note owned by the current user
 router.post("/", async (req, res) => {
-  const { title, content } = req.body;
-  if (!title) {
-    return res.status(400).json({ error: "Title is required" });
+  const parsed = noteSchema.safeParse(req.body);
+  if (!parsed.success) {
+    return res.status(400).json({ error: parsed.error.issues[0].message });
   }
+  const { title, content } = parsed.data;
+
   const note = await prisma.note.create({
-    data: {
-      title,
-      content: content || "",
-      userId: req.user.userId,
-    },
+    data: { title, content: content || "", userId: req.user.userId },
   });
   res.status(201).json(note);
 });
