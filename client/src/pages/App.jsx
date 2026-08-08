@@ -1,15 +1,35 @@
-import { useQuery } from "@tanstack/react-query";
+import { useState } from "react";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
-import { apiGet } from "../api";
+import { apiGet, apiPost } from "../api";
 
 export default function AppPage() {
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
+  const [title, setTitle] = useState("");
+  const [content, setContent] = useState("");
 
-  // useQuery handles loading/error/data for us, and caches the result
+  // READ: fetch the notes
   const { data: notes, isLoading, isError, error } = useQuery({
-    queryKey: ["notes"],                    // a name for this cached data
-    queryFn: () => apiGet("/api/notes"),    // how to fetch it
+    queryKey: ["notes"],
+    queryFn: () => apiGet("/api/notes"),
   });
+
+  // CREATE: a mutation that adds a note, then refreshes the list
+  const createNote = useMutation({
+    mutationFn: (newNote) => apiPost("/api/notes", newNote),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["notes"] });  // refetch the list
+      setTitle("");
+      setContent("");
+    },
+  });
+
+  function handleCreate(e) {
+    e.preventDefault();
+    if (!title.trim()) return;
+    createNote.mutate({ title, content });
+  }
 
   function logout() {
     localStorage.removeItem("token");
@@ -22,6 +42,24 @@ export default function AppPage() {
         <h1>My Notes</h1>
         <button onClick={logout}>Log out</button>
       </div>
+
+      {/* create form */}
+      <form onSubmit={handleCreate} style={{ marginBottom: 24 }}>
+        <input
+          placeholder="Note title" value={title}
+          onChange={(e) => setTitle(e.target.value)}
+          style={{ display: "block", width: "100%", marginBottom: 8, padding: 8 }}
+        />
+        <textarea
+          placeholder="Write something…" value={content}
+          onChange={(e) => setContent(e.target.value)}
+          rows={3}
+          style={{ display: "block", width: "100%", marginBottom: 8, padding: 8 }}
+        />
+        <button type="submit" disabled={createNote.isPending}>
+          {createNote.isPending ? "Adding…" : "Add note"}
+        </button>
+      </form>
 
       {isLoading && <p>Loading your notes…</p>}
       {isError && <p style={{ color: "red" }}>Error: {error.message}</p>}
