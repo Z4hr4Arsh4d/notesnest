@@ -8,20 +8,32 @@ datasource db {
 }
 
 model User {
-  id           Int      @id @default(autoincrement())
-  email        String   @unique
+  id           Int         @id @default(autoincrement())
+  email        String      @unique
   name         String?
   passwordHash String
-  createdAt    DateTime @default(now())
+  createdAt    DateTime    @default(now())
   notes        Note[]
+  workspaces   Workspace[]
+}
+
+model Workspace {
+  id        Int      @id @default(autoincrement())
+  name      String
+  createdAt DateTime @default(now())
+  userId    Int
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  notes     Note[]
 }
 
 model Note {
-  id        Int      @id @default(autoincrement())
-  title     String
-  content   String   @default("")
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-  userId    Int
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  id          Int        @id @default(autoincrement())
+  title       String
+  content     String     @default("")
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+  userId      Int
+  user        User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  workspaceId Int?
+  workspace   Workspace? @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
 }
