@@ -8,6 +8,7 @@ const noteSchema = z.object({
   title: z.string().min(1, "Title is required").max(200, "Title too long"),
   content: z.string().max(50000, "Content too long").optional(),
   workspaceId: z.number().optional(),
+  parentId: z.number().optional(),   // NEW
 });
 
 const router = express.Router();
@@ -23,14 +24,15 @@ router.post("/", async (req, res) => {
   }
   const { title, content, workspaceId } = parsed.data;
 
-  const note = await prisma.note.create({
-    data: {
-      title,
-      content: content || "",
-      userId: req.user.userId,
-      workspaceId: workspaceId || null,
-    },
-  });
+ const note = await prisma.note.create({
+  data: {
+    title,
+    content: content || "",
+    userId: req.user.userId,
+    workspaceId: parsed.data.workspaceId || null,
+    parentId: parsed.data.parentId || null,   // NEW
+  },
+});
   res.status(201).json(note);
 });
 

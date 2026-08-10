@@ -13,17 +13,16 @@ export default function AppPage() {
   const [editTitle, setEditTitle] = useState("");
   const [editContent, setEditContent] = useState("");
 
-  // NEW: which workspace is selected (null = "All notes"), and the new-workspace input
   const [activeWs, setActiveWs] = useState(null);
   const [wsName, setWsName] = useState("");
 
-  // workspaces query
+  // workspaces
   const { data: workspaces } = useQuery({
     queryKey: ["workspaces"],
     queryFn: () => apiGet("/api/workspaces"),
   });
 
-  // notes query — refetches whenever the active workspace changes
+  // notes (refetches when the active workspace changes)
   const { data: notes, isLoading, isError, error } = useQuery({
     queryKey: ["notes", activeWs],
     queryFn: () =>
@@ -63,7 +62,6 @@ export default function AppPage() {
   function handleCreate(e) {
     e.preventDefault();
     if (!title.trim()) return;
-    // new notes go into the selected workspace (if any)
     createNote.mutate({ title, content, ...(activeWs ? { workspaceId: activeWs } : {}) });
   }
 
@@ -78,6 +76,47 @@ export default function AppPage() {
   function logout() {
     localStorage.removeItem("token");
     navigate("/login");
+  }
+
+  // group notes into a tree
+  const topLevel = (notes || []).filter((n) => !n.parentId);
+  const childrenOf = (id) => (notes || []).filter((n) => n.parentId === id);
+
+  // recursively render a note and its children, indented by depth
+  function renderNote(note, depth = 0) {
+    return (
+      <div key={note.id} style={{ marginLeft: depth * 24 }}>
+        <div style={{ border: "1px solid #ddd", borderRadius: 8, padding: 12, marginBottom: 10 }}>
+          {editingId === note.id ? (
+            <>
+              <input value={editTitle} onChange={(e) => setEditTitle(e.target.value)}
+                style={{ display: "block", width: "100%", marginBottom: 6, padding: 6 }} />
+              <textarea value={editContent} onChange={(e) => setEditContent(e.target.value)} rows={3}
+                style={{ display: "block", width: "100%", marginBottom: 6, padding: 6 }} />
+              <button onClick={() => saveEdit(note.id)} disabled={updateNote.isPending}>Save</button>
+              <button onClick={() => setEditingId(null)} style={{ marginLeft: 6 }}>Cancel</button>
+            </>
+          ) : (
+            <>
+              <h3 style={{ margin: "0 0 6px" }}>{note.title}</h3>
+              <p style={{ margin: "0 0 8px", color: "#555" }}>{note.content}</p>
+              <button onClick={() => startEdit(note)}>Edit</button>
+              <button onClick={() => { if (confirm("Delete this note?")) deleteNote.mutate(note.id); }}
+                style={{ marginLeft: 6, color: "red" }}>Delete</button>
+              <button
+                onClick={() => {
+                  const t = prompt("Child note title:");
+                  if (t && t.trim())
+                    createNote.mutate({ title: t, parentId: note.id, ...(activeWs ? { workspaceId: activeWs } : {}) });
+                }}
+                style={{ marginLeft: 6 }}
+              >+ Subnote</button>
+            </>
+          )}
+        </div>
+        {childrenOf(note.id).map((child) => renderNote(child, depth + 1))}
+      </div>
+    );
   }
 
   return (
@@ -147,32 +186,9 @@ export default function AppPage() {
 
         {isLoading && <p>Loading your notes…</p>}
         {isError && <p style={{ color: "red" }}>Error: {error.message}</p>}
-        {notes && notes.length === 0 && <p>No notes here yet.</p>}
+        {notes && topLevel.length === 0 && <p>No notes here yet.</p>}
 
-        {notes && notes.map((note) => (
-          <div key={note.id} style={{ border: "1px solid #ddd", borderRadius: 8, padding: 12, marginBottom: 10 }}>
-            {editingId === note.id ? (
-              <>
-                <input value={editTitle} onChange={(e) => setEditTitle(e.target.value)}
-                  style={{ display: "block", width: "100%", marginBottom: 6, padding: 6 }} />
-                <textarea value={editContent} onChange={(e) => setEditContent(e.target.value)} rows={3}
-                  style={{ display: "block", width: "100%", marginBottom: 6, padding: 6 }} />
-                <button onClick={() => saveEdit(note.id)} disabled={updateNote.isPending}>Save</button>
-                <button onClick={() => setEditingId(null)} style={{ marginLeft: 6 }}>Cancel</button>
-              </>
-            ) : (
-              <>
-                <h3 style={{ margin: "0 0 6px" }}>{note.title}</h3>
-                <p style={{ margin: "0 0 8px", color: "#555" }}>{note.content}</p>
-                <button onClick={() => startEdit(note)}>Edit</button>
-                <button
-                  onClick={() => { if (confirm("Delete this note?")) deleteNote.mutate(note.id); }}
-                  style={{ marginLeft: 6, color: "red" }}
-                >Delete</button>
-              </>
-            )}
-          </div>
-        ))}
+        {notes && topLevel.map((note) => renderNote(note))}
       </main>
     </div>
   );

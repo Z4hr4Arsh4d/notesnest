@@ -36,4 +36,8 @@ model Note {
   user        User       @relation(fields: [userId], references: [id], onDelete: Cascade)
   workspaceId Int?
   workspace   Workspace? @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  parentId    Int?
+  parent      Note?      @relation("NoteTree", fields: [parentId], references: [id], onDelete: Cascade)
+  children    Note[]     @relation("NoteTree")
 }
