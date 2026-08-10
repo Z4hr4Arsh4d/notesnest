@@ -5,6 +5,7 @@ const userRoutes = require("./routes/user");
 const noteRoutes = require("./routes/notes");
 const app = express();   
 const rateLimit = require("express-rate-limit");
+const workspaceRoutes = require("./routes/workspaces");
 
 // Allow at most 20 auth attempts per 15 minutes per IP
 const authLimiter = rateLimit({
@@ -17,6 +18,7 @@ app.use(cors());
 app.use(express.json());
 app.use("/api/auth", authLimiter);  // Apply rate limiting to auth routes
 app.use("/api/notes", noteRoutes);
+app.use("/api/workspaces", workspaceRoutes);
 
 app.get("/api/health", (req, res) => {
   res.json({ ok: true, message: "server is alive" });

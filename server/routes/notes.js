@@ -7,7 +7,9 @@ const { z } = require("zod");
 const noteSchema = z.object({
   title: z.string().min(1, "Title is required").max(200, "Title too long"),
   content: z.string().max(50000, "Content too long").optional(),
+  workspaceId: z.number().optional(),
 });
+
 const router = express.Router();
 
 // Every route in this file is protected — you must be logged in.
@@ -19,18 +21,27 @@ router.post("/", async (req, res) => {
   if (!parsed.success) {
     return res.status(400).json({ error: parsed.error.issues[0].message });
   }
-  const { title, content } = parsed.data;
+  const { title, content, workspaceId } = parsed.data;
 
   const note = await prisma.note.create({
-    data: { title, content: content || "", userId: req.user.userId },
+    data: {
+      title,
+      content: content || "",
+      userId: req.user.userId,
+      workspaceId: workspaceId || null,
+    },
   });
   res.status(201).json(note);
 });
 
-// GET /api/notes — list ONLY the current user's notes
+// GET /api/notes — list the current user's notes (optionally filtered by workspace)
 router.get("/", async (req, res) => {
+  const { workspaceId } = req.query;   // optional ?workspaceId=3
   const notes = await prisma.note.findMany({
-    where: { userId: req.user.userId },
+    where: {
+      userId: req.user.userId,
+      ...(workspaceId ? { workspaceId: Number(workspaceId) } : {}),
+    },
     orderBy: { updatedAt: "desc" },
   });
   res.json(notes);
@@ -66,6 +77,7 @@ router.put("/:id", async (req, res) => {
   });
   res.json(note);
 });
+
 // DELETE /api/notes/:id — delete a note (only if it's yours)
 router.delete("/:id", async (req, res) => {
   const id = Number(req.params.id);
@@ -78,4 +90,5 @@ router.delete("/:id", async (req, res) => {
   await prisma.note.delete({ where: { id } });
   res.json({ ok: true, deleted: id });
 });
+
 module.exports = router;
