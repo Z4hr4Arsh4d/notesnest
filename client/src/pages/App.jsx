@@ -7,22 +7,37 @@ export default function AppPage() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
 
-  // create form state
   const [title, setTitle] = useState("");
   const [content, setContent] = useState("");
-
-  // edit state
   const [editingId, setEditingId] = useState(null);
   const [editTitle, setEditTitle] = useState("");
   const [editContent, setEditContent] = useState("");
 
-  // READ
-  const { data: notes, isLoading, isError, error } = useQuery({
-    queryKey: ["notes"],
-    queryFn: () => apiGet("/api/notes"),
+  // NEW: which workspace is selected (null = "All notes"), and the new-workspace input
+  const [activeWs, setActiveWs] = useState(null);
+  const [wsName, setWsName] = useState("");
+
+  // workspaces query
+  const { data: workspaces } = useQuery({
+    queryKey: ["workspaces"],
+    queryFn: () => apiGet("/api/workspaces"),
   });
 
-  // CREATE
+  // notes query — refetches whenever the active workspace changes
+  const { data: notes, isLoading, isError, error } = useQuery({
+    queryKey: ["notes", activeWs],
+    queryFn: () =>
+      apiGet(activeWs ? `/api/notes?workspaceId=${activeWs}` : "/api/notes"),
+  });
+
+  const createWorkspace = useMutation({
+    mutationFn: (name) => apiPost("/api/workspaces", { name }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["workspaces"] });
+      setWsName("");
+    },
+  });
+
   const createNote = useMutation({
     mutationFn: (newNote) => apiPost("/api/notes", newNote),
     onSuccess: () => {
@@ -32,7 +47,6 @@ export default function AppPage() {
     },
   });
 
-  // UPDATE
   const updateNote = useMutation({
     mutationFn: ({ id, ...data }) => apiPut(`/api/notes/${id}`, data),
     onSuccess: () => {
@@ -41,7 +55,6 @@ export default function AppPage() {
     },
   });
 
-  // DELETE
   const deleteNote = useMutation({
     mutationFn: (id) => apiDelete(`/api/notes/${id}`),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["notes"] }),
@@ -50,7 +63,8 @@ export default function AppPage() {
   function handleCreate(e) {
     e.preventDefault();
     if (!title.trim()) return;
-    createNote.mutate({ title, content });
+    // new notes go into the selected workspace (if any)
+    createNote.mutate({ title, content, ...(activeWs ? { workspaceId: activeWs } : {}) });
   }
 
   function startEdit(note) {
@@ -58,91 +72,108 @@ export default function AppPage() {
     setEditTitle(note.title);
     setEditContent(note.content);
   }
-
   function saveEdit(id) {
     updateNote.mutate({ id, title: editTitle, content: editContent });
   }
-
   function logout() {
     localStorage.removeItem("token");
     navigate("/login");
   }
 
   return (
-    <div style={{ maxWidth: 640, margin: "40px auto", fontFamily: "sans-serif" }}>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-        <h1>My Notes</h1>
-        <button onClick={logout}>Log out</button>
-      </div>
+    <div style={{ display: "flex", minHeight: "100vh", fontFamily: "sans-serif" }}>
+      {/* ---------- SIDEBAR ---------- */}
+      <aside style={{ width: 200, borderRight: "1px solid #333", padding: 16 }}>
+        <h3 style={{ marginTop: 0 }}>Workspaces</h3>
 
-      {/* create form */}
-      <form onSubmit={handleCreate} style={{ marginBottom: 24 }}>
-        <input
-          placeholder="Note title"
-          value={title}
-          onChange={(e) => setTitle(e.target.value)}
-          style={{ display: "block", width: "100%", marginBottom: 8, padding: 8 }}
-        />
-        <textarea
-          placeholder="Write something…"
-          value={content}
-          onChange={(e) => setContent(e.target.value)}
-          rows={3}
-          style={{ display: "block", width: "100%", marginBottom: 8, padding: 8 }}
-        />
-        <button type="submit" disabled={createNote.isPending}>
-          {createNote.isPending ? "Adding…" : "Add note"}
-        </button>
-      </form>
-
-      {/* the three states */}
-      {isLoading && <p>Loading your notes…</p>}
-      {isError && <p style={{ color: "red" }}>Error: {error.message}</p>}
-      {notes && notes.length === 0 && <p>No notes yet. Create your first one!</p>}
-
-      {/* the notes */}
-      {notes && notes.map((note) => (
         <div
-          key={note.id}
-          style={{ border: "1px solid #ddd", borderRadius: 8, padding: 12, marginBottom: 10 }}
+          onClick={() => setActiveWs(null)}
+          style={{
+            padding: "6px 8px", borderRadius: 6, cursor: "pointer",
+            background: activeWs === null ? "#2a2a2a" : "transparent",
+          }}
         >
-          {editingId === note.id ? (
-            // EDIT MODE
-            <>
-              <input
-                value={editTitle}
-                onChange={(e) => setEditTitle(e.target.value)}
-                style={{ display: "block", width: "100%", marginBottom: 6, padding: 6 }}
-              />
-              <textarea
-                value={editContent}
-                onChange={(e) => setEditContent(e.target.value)}
-                rows={3}
-                style={{ display: "block", width: "100%", marginBottom: 6, padding: 6 }}
-              />
-              <button onClick={() => saveEdit(note.id)} disabled={updateNote.isPending}>
-                Save
-              </button>
-              <button onClick={() => setEditingId(null)} style={{ marginLeft: 6 }}>
-                Cancel
-              </button>
-            </>
-          ) : (
-            // VIEW MODE
-            <>
-              <h3 style={{ margin: "0 0 6px" }}>{note.title}</h3>
-              <p style={{ margin: "0 0 8px", color: "#555" }}>{note.content}</p>
-              <button onClick={() => startEdit(note)}>Edit</button>
-              <button
-                onClick={() => { if (confirm("Delete this note?")) deleteNote.mutate(note.id); }}
-                style={{ marginLeft: 6, color: "red" }}
-              >
-                Delete
-              </button>
-            </>
-          )}
+          All notes
         </div>
-      ))}
+
+        {workspaces && workspaces.map((ws) => (
+          <div
+            key={ws.id}
+            onClick={() => setActiveWs(ws.id)}
+            style={{
+              padding: "6px 8px", borderRadius: 6, cursor: "pointer",
+              background: activeWs === ws.id ? "#2a2a2a" : "transparent",
+            }}
+          >
+            {ws.name}
+          </div>
+        ))}
+
+        <form
+          onSubmit={(e) => { e.preventDefault(); if (wsName.trim()) createWorkspace.mutate(wsName); }}
+          style={{ marginTop: 12 }}
+        >
+          <input
+            placeholder="New workspace" value={wsName}
+            onChange={(e) => setWsName(e.target.value)}
+            style={{ width: "100%", padding: 6, marginBottom: 6, boxSizing: "border-box" }}
+          />
+          <button type="submit" style={{ width: "100%" }}>+ Add</button>
+        </form>
+      </aside>
+
+      {/* ---------- MAIN ---------- */}
+      <main style={{ flex: 1, maxWidth: 640, margin: "40px auto", padding: "0 20px" }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+          <h1>{activeWs ? workspaces?.find((w) => w.id === activeWs)?.name : "All notes"}</h1>
+          <button onClick={logout}>Log out</button>
+        </div>
+
+        <form onSubmit={handleCreate} style={{ marginBottom: 24 }}>
+          <input
+            placeholder="Note title" value={title}
+            onChange={(e) => setTitle(e.target.value)}
+            style={{ display: "block", width: "100%", marginBottom: 8, padding: 8 }}
+          />
+          <textarea
+            placeholder="Write something…" value={content}
+            onChange={(e) => setContent(e.target.value)} rows={3}
+            style={{ display: "block", width: "100%", marginBottom: 8, padding: 8 }}
+          />
+          <button type="submit" disabled={createNote.isPending}>
+            {createNote.isPending ? "Adding…" : "Add note"}
+          </button>
+        </form>
+
+        {isLoading && <p>Loading your notes…</p>}
+        {isError && <p style={{ color: "red" }}>Error: {error.message}</p>}
+        {notes && notes.length === 0 && <p>No notes here yet.</p>}
+
+        {notes && notes.map((note) => (
+          <div key={note.id} style={{ border: "1px solid #ddd", borderRadius: 8, padding: 12, marginBottom: 10 }}>
+            {editingId === note.id ? (
+              <>
+                <input value={editTitle} onChange={(e) => setEditTitle(e.target.value)}
+                  style={{ display: "block", width: "100%", marginBottom: 6, padding: 6 }} />
+                <textarea value={editContent} onChange={(e) => setEditContent(e.target.value)} rows={3}
+                  style={{ display: "block", width: "100%", marginBottom: 6, padding: 6 }} />
+                <button onClick={() => saveEdit(note.id)} disabled={updateNote.isPending}>Save</button>
+                <button onClick={() => setEditingId(null)} style={{ marginLeft: 6 }}>Cancel</button>
+              </>
+            ) : (
+              <>
+                <h3 style={{ margin: "0 0 6px" }}>{note.title}</h3>
+                <p style={{ margin: "0 0 8px", color: "#555" }}>{note.content}</p>
+                <button onClick={() => startEdit(note)}>Edit</button>
+                <button
+                  onClick={() => { if (confirm("Delete this note?")) deleteNote.mutate(note.id); }}
+                  style={{ marginLeft: 6, color: "red" }}
+                >Delete</button>
+              </>
+            )}
+          </div>
+        ))}
+      </main>
     </div>
   );
 }
