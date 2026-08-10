@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
-import { apiGet, apiPost, apiPut } from "../api";
+import { apiGet, apiPost, apiPut, apiDelete } from "../api";
 
 export default function AppPage() {
   const navigate = useNavigate();
@@ -11,12 +11,12 @@ export default function AppPage() {
   const [title, setTitle] = useState("");
   const [content, setContent] = useState("");
 
-  // edit state — which note is being edited, and its draft values
+  // edit state
   const [editingId, setEditingId] = useState(null);
   const [editTitle, setEditTitle] = useState("");
   const [editContent, setEditContent] = useState("");
 
-  // READ: fetch the notes
+  // READ
   const { data: notes, isLoading, isError, error } = useQuery({
     queryKey: ["notes"],
     queryFn: () => apiGet("/api/notes"),
@@ -39,6 +39,12 @@ export default function AppPage() {
       queryClient.invalidateQueries({ queryKey: ["notes"] });
       setEditingId(null);
     },
+  });
+
+  // DELETE
+  const deleteNote = useMutation({
+    mutationFn: (id) => apiDelete(`/api/notes/${id}`),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["notes"] }),
   });
 
   function handleCreate(e) {
@@ -127,6 +133,12 @@ export default function AppPage() {
               <h3 style={{ margin: "0 0 6px" }}>{note.title}</h3>
               <p style={{ margin: "0 0 8px", color: "#555" }}>{note.content}</p>
               <button onClick={() => startEdit(note)}>Edit</button>
+              <button
+                onClick={() => { if (confirm("Delete this note?")) deleteNote.mutate(note.id); }}
+                style={{ marginLeft: 6, color: "red" }}
+              >
+                Delete
+              </button>
             </>
           )}
         </div>
