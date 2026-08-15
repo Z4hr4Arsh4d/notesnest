@@ -15,6 +15,7 @@ model User {
   createdAt    DateTime    @default(now())
   notes        Note[]
   workspaces   Workspace[]
+  tasks        Task[]
 }
 
 model Workspace {
@@ -24,8 +25,8 @@ model Workspace {
   userId    Int
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   notes     Note[]
+  tasks     Task[]
 }
-
 model Note {
   id          Int        @id @default(autoincrement())
   title       String
@@ -40,4 +41,18 @@ model Note {
   parentId    Int?
   parent      Note?      @relation("NoteTree", fields: [parentId], references: [id], onDelete: Cascade)
   children    Note[]     @relation("NoteTree")
+}
+
+model Task {
+  id          Int        @id @default(autoincrement())
+  title       String
+  done        Boolean    @default(false)
+  status      String     @default("todo")   // "todo" | "doing" | "done"
+  dueDate     DateTime?
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+  userId      Int
+  user        User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  workspaceId Int?
+  workspace   Workspace? @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
 }
