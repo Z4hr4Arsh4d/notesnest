@@ -13,6 +13,7 @@ export default function TasksPage() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const [title, setTitle] = useState("");
+  const [dragOverCol, setDragOverCol] = useState(null);   // which column is being hovered
 
   const { data: tasks, isLoading, isError, error } = useQuery({
     queryKey: ["tasks"],
@@ -40,17 +41,22 @@ export default function TasksPage() {
   function handleCreate(e) {
     e.preventDefault();
     if (!title.trim()) return;
-    createTask.mutate({ title, status: "todo" });   // new tasks start in To Do
+    createTask.mutate({ title, status: "todo" });
   }
 
-  // move a task to a different column (status)
-  function moveTo(task, newStatus) {
-    updateTask.mutate({ id: task.id, status: newStatus });
+  // --- Drag and drop handlers ---
+  function handleDragStart(e, taskId) {
+    e.dataTransfer.setData("taskId", taskId);   // remember which task is being dragged
   }
 
-  // helper: which columns can this task move to (all except its current one)
-  function otherColumns(currentStatus) {
-    return COLUMNS.filter((c) => c.key !== currentStatus);
+  function handleDrop(e, newStatus) {
+    e.preventDefault();
+    const taskId = Number(e.dataTransfer.getData("taskId"));
+    const task = tasks.find((t) => t.id === taskId);
+    if (task && task.status !== newStatus) {
+      updateTask.mutate({ id: taskId, status: newStatus });
+    }
+    setDragOverCol(null);
   }
 
   return (
@@ -72,42 +78,46 @@ export default function TasksPage() {
       {isLoading && <p>Loading tasks…</p>}
       {isError && <p style={{ color: "red" }}>Error: {error.message}</p>}
 
-      {/* the three columns */}
       {tasks && (
         <div style={{ display: "flex", gap: 16, alignItems: "flex-start" }}>
           {COLUMNS.map((col) => {
             const columnTasks = tasks.filter((t) => (t.status || "todo") === col.key);
+            const isOver = dragOverCol === col.key;
             return (
-              <div key={col.key} style={{
-                flex: 1, background: col.color, borderRadius: 10, padding: 12, minHeight: 300,
-              }}>
+              <div
+                key={col.key}
+                onDragOver={(e) => { e.preventDefault(); setDragOverCol(col.key); }}
+                onDragLeave={() => setDragOverCol(null)}
+                onDrop={(e) => handleDrop(e, col.key)}
+                style={{
+                  flex: 1, background: col.color, borderRadius: 10, padding: 12, minHeight: 300,
+                  outline: isOver ? "3px dashed #4a90d9" : "3px solid transparent",  // highlight drop target
+                  transition: "outline 0.1s",
+                }}
+              >
                 <h3 style={{ marginTop: 0, textAlign: "center" }}>
                   {col.label} <span style={{ color: "#888" }}>({columnTasks.length})</span>
                 </h3>
 
                 {columnTasks.length === 0 && (
-                  <p style={{ textAlign: "center", color: "#aaa", fontSize: 14 }}>Empty</p>
+                  <p style={{ textAlign: "center", color: "#aaa", fontSize: 14 }}>Drop here</p>
                 )}
 
                 {columnTasks.map((task) => (
-                  <div key={task.id} style={{
-                    background: "#fff", borderRadius: 8, padding: 10, marginBottom: 8,
-                    boxShadow: "0 1px 3px rgba(0,0,0,0.12)",
-                  }}>
-                    <div style={{ marginBottom: 8 }}>{task.title}</div>
-                    <div style={{ display: "flex", gap: 4, flexWrap: "wrap" }}>
-                      {otherColumns(task.status || "todo").map((c) => (
-                        <button
-                          key={c.key}
-                          onClick={() => moveTo(task, c.key)}
-                          style={{ fontSize: 12, padding: "2px 6px" }}
-                        >
-                          → {c.label}
-                        </button>
-                      ))}
+                  <div
+                    key={task.id}
+                    draggable
+                    onDragStart={(e) => handleDragStart(e, task.id)}
+                    style={{
+                      background: "#fff", borderRadius: 8, padding: 10, marginBottom: 8,
+                      boxShadow: "0 1px 3px rgba(0,0,0,0.12)", cursor: "grab",
+                    }}
+                  >
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                      <span>{task.title}</span>
                       <button
                         onClick={() => deleteTask.mutate(task.id)}
-                        style={{ fontSize: 12, padding: "2px 6px", color: "red", marginLeft: "auto" }}
+                        style={{ fontSize: 12, padding: "2px 6px", color: "red" }}
                       >
                         ✕
                       </button>
