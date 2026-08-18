@@ -7,6 +7,7 @@ import AppPage from "./pages/App.jsx";
 import "./index.css";
 import ProtectedRoute from "./ProtectedRoute.jsx";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import TasksPage from "./pages/Tasks.jsx";
 
 const queryClient = new QueryClient();
 
@@ -19,6 +20,7 @@ ReactDOM.createRoot(document.getElementById("root")).render(
           <Route path="/login" element={<Login />} />
           <Route path="/register" element={<Register />} />
           <Route path="/app" element={<ProtectedRoute><AppPage /></ProtectedRoute>} />
+          <Route path="/tasks" element={<ProtectedRoute><TasksPage /></ProtectedRoute>} />
         </Routes>
       </BrowserRouter>
     </QueryClientProvider>

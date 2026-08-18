@@ -166,6 +166,7 @@ export default function AppPage() {
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
           <h1>{activeWs ? workspaces?.find((w) => w.id === activeWs)?.name : "All notes"}</h1>
           <button onClick={logout}>Log out</button>
+          <button onClick={() => navigate("/tasks")}>Tasks →</button>
         </div>
 
         <form onSubmit={handleCreate} style={{ marginBottom: 24 }}>
